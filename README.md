@@ -1,4 +1,4 @@
-<img width="1916" height="836" alt="image" src="https://github.com/user-attachments/assets/b2053463-54ee-4a72-a883-5a36cdff73ed" /># 🏭 Production Three-Tier AWS Architecture with Terraform (ECS Fargate + Aurora + Redis + WAF)
+# 🏭 Production Three-Tier AWS Architecture with Terraform (ECS Fargate + Aurora + Redis + WAF)
 
 ## 📌 Overview
 
