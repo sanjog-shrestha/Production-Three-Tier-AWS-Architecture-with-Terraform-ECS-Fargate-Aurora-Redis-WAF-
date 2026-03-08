@@ -1,4 +1,4 @@
-# 🏭 Production Three-Tier AWS Architecture with Terraform (ECS Fargate + Aurora + Redis + WAF)
+<img width="1916" height="836" alt="image" src="https://github.com/user-attachments/assets/b2053463-54ee-4a72-a883-5a36cdff73ed" /># 🏭 Production Three-Tier AWS Architecture with Terraform (ECS Fargate + Aurora + Redis + WAF)
 
 ## 📌 Overview
 
@@ -56,7 +56,8 @@ AWS WAFv2 Web ACL
 ```
 
 > 📸 **Architecture Screenshot:**
-> ![Architecture](./screenshots/architecture.png)
+<img width="1024" height="1536" alt="image" src="https://github.com/user-attachments/assets/36c1b234-fb7c-42e7-a166-356c1fe8d131" />
+
 
 ---
 
@@ -107,7 +108,10 @@ AWS WAFv2 Web ACL
 | Redis Subnet Group | Restricted to private DB subnets |
 
 > 📸 **AWS Console Screenshot:**
-> ![AWS Console](./screenshots/aws-console.png)
+<img width="1633" height="728" alt="image" src="https://github.com/user-attachments/assets/54df9194-b55a-4b1c-8061-a00ca4d0ded1" />
+<img width="1630" height="717" alt="image" src="https://github.com/user-attachments/assets/4e5e980c-ec44-439d-86e1-c4dcf6f3d677" />
+<img width="1631" height="118" alt="image" src="https://github.com/user-attachments/assets/64a60edf-554f-413b-aa23-93462f9717e5" />
+
 
 ---
 
@@ -271,7 +275,9 @@ private_db_subnet_ids  = ["subnet-xxxxxxxxx", "subnet-xxxxxxxxx"]
 ```
 
 > 📸 **Deployment Screenshot:**
-> ![Deployment Output](./screenshots/deployment-output.png)
+<img width="937" height="535" alt="image" src="https://github.com/user-attachments/assets/24c90b77-5a2e-40ff-9879-cb8d711718fb" />
+
+
 
 ---
 
@@ -289,7 +295,7 @@ The Nginx container responds confirming that:
 - Target group health checks are passing
 
 > 📸 **App Screenshot:**
-> ![Live App](./screenshots/app-live.png)
+<img width="1918" height="873" alt="image" src="https://github.com/user-attachments/assets/bc5c63de-a02d-482b-9356-b6b6c7403fc9" />
 
 ---
 
@@ -308,7 +314,8 @@ The WAF rules active on the ALB:
 | RateLimitRule | 3 | Block IPs exceeding 1000 requests |
 
 > 📸 **WAF Screenshot:**
-> ![WAF Rules](./screenshots/waf-rules.png)
+<img width="1860" height="652" alt="image" src="https://github.com/user-attachments/assets/d5060605-6632-4baa-a236-1814efdfb945" />
+
 
 ### Private Tier Isolation
 
@@ -320,7 +327,10 @@ The task detail shows:
 - **Public IP:** none — containers are not publicly reachable
 
 > 📸 **Fargate Task Screenshot:**
-> ![Fargate Private Task](./screenshots/fargate-task.png)
+<img width="1915" height="681" alt="image" src="https://github.com/user-attachments/assets/5ab989c5-aeaf-4178-b9ad-7b2d62128df7" />
+<img width="1917" height="655" alt="image" src="https://github.com/user-attachments/assets/70e56ced-5bba-4b7c-b8e8-db41ebdbf976" />
+<img width="1918" height="830" alt="image" src="https://github.com/user-attachments/assets/7cc22af3-b09c-4c81-a3e2-5ed9f873aae8" />
+
 
 ---
 
@@ -337,7 +347,8 @@ Navigate to **ECS → Cluster → Service → Configuration and networking tab �
 | Request Count Scaling | ALB Requests Per Target | 1000 | 60 seconds | 300 seconds |
 
 > 📸 **Auto Scaling Screenshot:**
-> ![Auto Scaling](./screenshots/autoscaling.png)
+<img width="1916" height="836" alt="image" src="https://github.com/user-attachments/assets/de41b4f4-22f0-44fb-894b-99dac8bbacd2" />
+
 
 ---
 
