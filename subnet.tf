@@ -30,7 +30,6 @@ resource "aws_subnet" "private_app_2" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.12.0/24"
   availability_zone       = "${var.aws_region}b"
-  map_public_ip_on_launch = true
 }
 
 # Private data subnet (AZ a) for cache + database.
@@ -45,5 +44,4 @@ resource "aws_subnet" "private_db_2" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.22.0/24"
   availability_zone       = "${var.aws_region}b"
-  map_public_ip_on_launch = true
 }
