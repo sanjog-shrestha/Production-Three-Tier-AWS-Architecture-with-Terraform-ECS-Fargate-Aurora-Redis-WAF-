@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------------------
+# providers.tf — Terraform and AWS provider configuration and default tags.
+# ------------------------------------------------------------------------------
+
 terraform {
   # Terraform CLI + provider constraints for reproducible deployments.
   required_version = ">=1.14.0"

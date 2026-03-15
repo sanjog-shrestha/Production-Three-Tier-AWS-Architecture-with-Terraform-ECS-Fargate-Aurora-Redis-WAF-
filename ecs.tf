@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------------------
+# ecs.tf — ECS Fargate cluster, task definition, service, IAM, and CloudWatch logging.
+# ------------------------------------------------------------------------------
+
 # IAM trust policy document allowing ECS tasks to assume the execution role.
 data "aws_iam_policy_document" "ecs_assume_role" {
   statement {
@@ -85,6 +89,14 @@ resource "aws_ecs_task_definition" "app" {
         {
           name  = "APP_TIER"
           value = "application"
+        },
+        {
+          name  = "DB_SECRET_ARN"
+          value = aws_secretsmanager_secret.aurora_credentials.arn
+        },
+        {
+          name  = "DB_NAME"
+          value = "appdb"
         }
       ]
 

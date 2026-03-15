@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------------------
+# redis.tf — ElastiCache Redis replication group (Multi-AZ), subnet and parameter groups.
+# ------------------------------------------------------------------------------
+
 # Subnet group restricting Redis to the private DB subnets.
 resource "aws_elasticache_subnet_group" "redis" {
   name = "${var.project_name}-redis-subnet-group"

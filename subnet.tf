@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------------------
+# subnet.tf — Public, private app, and private DB subnets across two AZs.
+# ------------------------------------------------------------------------------
+
 # Public subnet (AZ a) for internet-facing resources (e.g., ALB/NAT).
 resource "aws_subnet" "public_1" {
   vpc_id                  = aws_vpc.main.id

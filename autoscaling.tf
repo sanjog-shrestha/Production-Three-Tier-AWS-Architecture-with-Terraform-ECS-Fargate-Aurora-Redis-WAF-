@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------------------
+# autoscaling.tf — ECS Application Auto Scaling (CPU, memory, request count) and CloudWatch alarms.
+# ------------------------------------------------------------------------------
+
 # Autoscaling target defining the scalable ECS service desired count range.
 resource "aws_appautoscaling_target" "ecs" {
   max_capacity       = 20

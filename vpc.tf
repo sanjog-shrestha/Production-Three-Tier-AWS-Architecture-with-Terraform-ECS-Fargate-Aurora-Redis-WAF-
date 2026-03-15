@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------------------
+# vpc.tf — VPC for the three-tier architecture (10.0.0.0/16).
+# ------------------------------------------------------------------------------
+
 # VPC for the entire multi-tier application (public + private subnets).
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"

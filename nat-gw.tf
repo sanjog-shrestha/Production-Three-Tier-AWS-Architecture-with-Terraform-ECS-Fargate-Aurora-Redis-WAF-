@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------------------
+# nat-gw.tf — NAT Gateways and Elastic IPs for private subnet outbound internet access.
+# ------------------------------------------------------------------------------
+
 # Elastic IP for NAT Gateway in public subnet (AZ a).
 resource "aws_eip" "nat_1" {
   domain = "vpc"

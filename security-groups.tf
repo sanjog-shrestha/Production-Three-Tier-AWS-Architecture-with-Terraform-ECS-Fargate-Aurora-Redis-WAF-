@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------------------
+# security-groups.tf — Security groups for ALB, ECS, Redis, and Aurora.
+# ------------------------------------------------------------------------------
+
 # Security group for the ALB (ingress from the internet, egress to targets).
 resource "aws_security_group" "alb" {
   name        = "${var.project_name}-alb-sg"

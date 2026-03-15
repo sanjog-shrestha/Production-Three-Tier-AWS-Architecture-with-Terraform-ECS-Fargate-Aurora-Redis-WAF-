@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------------------
+# alb.tf — Application Load Balancer, target group, and HTTP listener.
+# ------------------------------------------------------------------------------
+
 # Target group for ECS tasks behind the ALB.
 resource "aws_lb_target_group" "app" {
   name        = "${var.project_name}-tg"

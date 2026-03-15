@@ -16,6 +16,7 @@ The infrastructure includes:
 - Three-policy auto scaling (CPU, memory, and request count) between 2–20 tasks
 - CloudWatch alarms for CPU high/low monitoring
 - Four independent security groups with strict least-privilege chaining
+- **AWS Secrets Manager for encrypted Aurora MySQL credential management**
 
 This project highlights production cloud architecture, defence-in-depth security, serverless data services, and advanced DevOps deployment practices.
 
@@ -58,7 +59,6 @@ AWS WAFv2 Web ACL
 > 📸 **Architecture Screenshot:**
 <img width="1024" height="1536" alt="image" src="https://github.com/user-attachments/assets/36c1b234-fb7c-42e7-a166-356c1fe8d131" />
 
-
 ---
 
 ## ☁️ AWS Deployment
@@ -90,7 +90,7 @@ AWS WAFv2 Web ACL
 | Capacity Providers | 70% FARGATE / 30% FARGATE_SPOT for cost optimisation |
 | ECS Task Definition | Fargate task: 512 CPU / 1024 MB, Nginx, production env vars |
 | ECS Service | 2 desired tasks in private app subnets, no public IPs |
-| IAM Execution Role | Least-privilege role for image pull and CloudWatch logging |
+| IAM Execution Role | Least-privilege role for image pull, CloudWatch logging, and Secrets Manager read |
 | CloudWatch Log Group | `/ecs/<project>` with 30-day retention |
 | Auto Scaling Target | 2–20 tasks |
 | CPU Scaling Policy | Scales out at 65% CPU utilisation |
@@ -106,12 +106,12 @@ AWS WAFv2 Web ACL
 | Redis Replication Group | Multi-AZ, automatic failover, encrypted in-transit and at-rest |
 | Redis Parameter Group | `allkeys-lru` eviction policy |
 | Redis Subnet Group | Restricted to private DB subnets |
+| Secrets Manager Secret | Encrypted Aurora credentials (`<project>/aurora/credentials`) |
 
 > 📸 **AWS Console Screenshot:**
 <img width="1633" height="728" alt="image" src="https://github.com/user-attachments/assets/54df9194-b55a-4b1c-8061-a00ca4d0ded1" />
 <img width="1630" height="717" alt="image" src="https://github.com/user-attachments/assets/4e5e980c-ec44-439d-86e1-c4dcf6f3d677" />
 <img width="1631" height="118" alt="image" src="https://github.com/user-attachments/assets/64a60edf-554f-413b-aa23-93462f9717e5" />
-
 
 ---
 
@@ -120,7 +120,7 @@ AWS WAFv2 Web ACL
 ```
 terraform-production-three-tier/
 ├── providers.tf           # Terraform version, AWS provider, default tags
-├── variables.tf           # Input variables: region, project name, environment
+├── variables.tf           # Input variables: region, project name, environment, DB credentials
 ├── vpc.tf                 # VPC with DNS support
 ├── subnet.tf              # 6 subnets across 3 tiers and 2 AZs
 ├── internet-gw.tf         # Internet Gateway for public tier
@@ -133,7 +133,8 @@ terraform-production-three-tier/
 ├── autoscaling.tf         # 3-policy auto scaling + CloudWatch alarms
 ├── aurora.tf              # Aurora MySQL Serverless v2 cluster + parameter group
 ├── redis.tf               # ElastiCache Redis replication group + parameter group
-└── outputs.tf             # App URL, endpoints for Redis, Aurora, VPC, subnet IDs
+├── secrets.tf             # Secrets Manager secret, versioning, data source, IAM read policy
+└── outputs.tf             # App URL, endpoints for Redis, Aurora, VPC, subnet IDs, secret ARN
 ```
 
 ### File Explanations
@@ -141,7 +142,7 @@ terraform-production-three-tier/
 | File | Purpose |
 |---|---|
 | `providers.tf` | Pins Terraform `>=1.14.0`, AWS provider `~> 5.0`, applies default tags to all resources |
-| `variables.tf` | Defines `aws_region`, `project_name`, and `environment` variables |
+| `variables.tf` | Defines `aws_region`, `project_name`, `environment`, `db_username`, `db_password` variables |
 | `vpc.tf` | Creates the VPC (`10.0.0.0/16`) with DNS hostnames enabled |
 | `subnet.tf` | 2 public, 2 private app, 2 private DB subnets across 2 AZs |
 | `internet-gw.tf` | Internet Gateway for public subnet internet access |
@@ -154,7 +155,8 @@ terraform-production-three-tier/
 | `autoscaling.tf` | 3 scaling policies (CPU, memory, requests) + 2 CloudWatch alarms |
 | `aurora.tf` | Aurora MySQL Serverless v2 cluster with writer + reader instances |
 | `redis.tf` | Multi-AZ Redis replication group with encryption and LRU eviction |
-| `outputs.tf` | Outputs app URL, ALB DNS, cluster name, Redis endpoints, Aurora endpoints |
+| `secrets.tf` | Creates Secrets Manager secret, seeds Aurora credentials, exposes data source, IAM read policy |
+| `outputs.tf` | Outputs app URL, ALB DNS, cluster name, Redis endpoints, Aurora endpoints, secret ARN |
 
 ---
 
@@ -184,6 +186,7 @@ Security is enforced at multiple layers simultaneously:
 - **Security groups** chain traffic strictly: Internet → ALB → ECS → Redis/Aurora
 - **No public IPs on ECS tasks** — containers are not directly reachable from the internet
 - **No internet route on DB subnets** — data tier is completely isolated from outbound internet
+- **Secrets Manager** — Aurora credentials are never stored in source code, state files, or terminal history
 
 ### 4️⃣ Dual NAT Gateways for High Availability
 
@@ -205,6 +208,14 @@ The ECS service scales between 2 and 20 tasks using three independent policies:
 
 Having three policies means the service scales proactively on whichever signal indicates pressure first, rather than waiting for one metric to breach while another is already under stress.
 
+### 7️⃣ AWS Secrets Manager for Aurora Credentials
+
+Aurora MySQL credentials are stored encrypted in **AWS Secrets Manager** via a dedicated `secrets.tf` file. Previously credentials were hardcoded as plain-text strings directly in `aurora.tf` — a critical security risk in a production stack. The secret stores a full JSON payload containing username, password, host, port, engine, and database name so the application only needs a single `GetSecretValue` API call to get everything it needs to connect. The ECS task receives the secret ARN as a `DB_SECRET_ARN` environment variable at runtime, and the IAM execution role has an inline policy scoped to that exact secret ARN — it cannot read any other secret in the account.
+
+> 📸 **Secrets Manager Console Screenshot:**
+<!-- TO ADD: Go to AWS Console → Secrets Manager → your-project/aurora/credentials → take a screenshot showing the secret exists → upload to GitHub and replace this line with the img tag -->
+> ⚠️ *Replace this line with your Secrets Manager screenshot after applying infrastructure*
+
 ---
 
 ## 🚀 Deployment Instructions
@@ -212,7 +223,7 @@ Having three policies means the service scales proactively on whichever signal i
 ### Prerequisites
 - [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.14.0
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) configured with valid credentials
-- AWS account with ECS, RDS, ElastiCache, WAF, EC2, IAM, and CloudWatch permissions
+- AWS account with ECS, RDS, ElastiCache, WAF, EC2, IAM, CloudWatch, and **Secrets Manager** permissions
 
 ### Steps
 
@@ -237,18 +248,26 @@ terraform validate
 terraform plan \
   -var="aws_region=eu-west-2" \
   -var="project_name=myapp" \
-  -var="environment=prod"
+  -var="environment=prod" \
+  -var="db_username=adminuser" \
+  -var="db_password=YourSecurePassword123!"
 ```
+
+> 🔒 Both `db_username` and `db_password` will show as `(sensitive value)` in the plan output — this confirms redaction is working correctly.
 
 **5. Apply Infrastructure**
 ```bash
 terraform apply \
   -var="aws_region=eu-west-2" \
   -var="project_name=myapp" \
-  -var="environment=prod"
+  -var="environment=prod" \
+  -var="db_username=adminuser" \
+  -var="db_password=YourSecurePassword123!"
 ```
 
 > ⚠️ Aurora and Redis provisioning takes approximately **10–15 minutes**. ECS tasks will reach healthy state within 2–3 minutes after that.
+
+> 🔒 After first apply, credentials are stored encrypted in Secrets Manager. They never need to be passed again unless rotated.
 
 ---
 
@@ -268,6 +287,7 @@ aurora_writer_endpoint = <sensitive>
 aurora_reader_endpoint = <sensitive>
 aurora_database_name   = "appdb"
 aurora_port            = 3306
+aurora_secret_arn      = "arn:aws:secretsmanager:eu-west-2:xxxxxxxxxxxx:secret:myapp/aurora/credentials"
 vpc_id                 = "vpc-xxxxxxxxxxxxxxxxx"
 public_subnet_ids      = ["subnet-xxxxxxxxx", "subnet-xxxxxxxxx"]
 private_app_subnet_ids = ["subnet-xxxxxxxxx", "subnet-xxxxxxxxx"]
@@ -276,8 +296,6 @@ private_db_subnet_ids  = ["subnet-xxxxxxxxx", "subnet-xxxxxxxxx"]
 
 > 📸 **Deployment Screenshot:**
 <img width="937" height="535" alt="image" src="https://github.com/user-attachments/assets/24c90b77-5a2e-40ff-9879-cb8d711718fb" />
-
-
 
 ---
 
@@ -316,7 +334,6 @@ The WAF rules active on the ALB:
 > 📸 **WAF Screenshot:**
 <img width="1860" height="652" alt="image" src="https://github.com/user-attachments/assets/d5060605-6632-4baa-a236-1814efdfb945" />
 
-
 ### Private Tier Isolation
 
 Navigate to **ECS → Cluster → Tasks → click any task**
@@ -331,6 +348,18 @@ The task detail shows:
 <img width="1917" height="655" alt="image" src="https://github.com/user-attachments/assets/70e56ced-5bba-4b7c-b8e8-db41ebdbf976" />
 <img width="1918" height="830" alt="image" src="https://github.com/user-attachments/assets/7cc22af3-b09c-4c81-a3e2-5ed9f873aae8" />
 
+### Secrets Manager Credential Validation
+
+Navigate to **AWS Console → Secrets Manager → `myapp/aurora/credentials`**
+
+The secret confirms:
+- Credentials are stored as encrypted JSON containing username, password, host, port, engine, and dbname
+- The IAM execution role has read-only access scoped to this secret ARN only
+- The `DB_SECRET_ARN` environment variable in the ECS task definition points to this secret
+
+> 📸 **Secrets Manager Screenshot:**
+<!-- TO ADD: Go to AWS Console → Secrets Manager → your-project/aurora/credentials → take a screenshot → upload to GitHub and replace this line with the img tag -->
+> ⚠️ *Replace this line with your Secrets Manager screenshot after applying infrastructure*
 
 ---
 
@@ -349,7 +378,6 @@ Navigate to **ECS → Cluster → Service → Configuration and networking tab �
 > 📸 **Auto Scaling Screenshot:**
 <img width="1916" height="836" alt="image" src="https://github.com/user-attachments/assets/de41b4f4-22f0-44fb-894b-99dac8bbacd2" />
 
-
 ---
 
 ## 📊 Infrastructure Summary
@@ -358,13 +386,14 @@ Navigate to **ECS → Cluster → Service → Configuration and networking tab �
 |---|---|
 | Networking | Amazon VPC, 6 Subnets (3 tiers × 2 AZs), IGW, Dual NAT Gateways |
 | Security | AWS WAFv2, 4 Security Groups (least-privilege chaining) |
+| Credential Management | AWS Secrets Manager |
 | Load Balancing | AWS Application Load Balancer (ALB) |
 | Container Orchestration | AWS ECS Fargate (FARGATE + FARGATE_SPOT) |
 | Auto Scaling | AWS Application Auto Scaling (3 policies) |
 | Observability | CloudWatch Logs, Container Insights, CloudWatch Alarms |
 | Database | Amazon Aurora MySQL Serverless v2 (writer + reader) |
 | Cache | Amazon ElastiCache Redis 7 (Multi-AZ, encrypted) |
-| IAM | ECS Task Execution Role (least-privilege) |
+| IAM | ECS Task Execution Role (least-privilege + Secrets Manager read) |
 | Infrastructure Provisioning | Terraform >= 1.14.0 / AWS Provider ~> 5.0 |
 | Region | eu-west-2 (London) |
 
@@ -381,7 +410,11 @@ Navigate to **ECS → Cluster → Service → Configuration and networking tab �
 - Three-policy auto scaling (CPU, memory, request count) with CloudWatch alarms
 - Least-privilege security group chaining across all four tiers
 - Default tag strategy for cost tracking across all resources
-- Terraform resource dependency management across 15 logical files
+- Terraform resource dependency management across 16 logical files
+- **AWS Secrets Manager for encrypted Aurora credential storage and runtime injection**
+- **`sensitive = true` variable flag for Terraform output redaction**
+- **Least-privilege inline IAM policy scoped to a single secret ARN**
+- **`DB_SECRET_ARN` environment variable pattern for secure runtime credential retrieval**
 
 ---
 
@@ -396,6 +429,8 @@ This project demonstrates the ability to:
 - Configure multi-metric auto scaling with CloudWatch observability
 - Structure complex Terraform configurations across logical, single-responsibility files
 - Apply enterprise cloud architecture patterns using Infrastructure as Code
+- **Manage database credentials securely using AWS Secrets Manager via Terraform**
+- **Inject secret ARNs into ECS tasks for secure runtime credential retrieval**
 
 ---
 
@@ -405,7 +440,7 @@ Potential enhancements:
 
 - [ ] HTTPS with AWS Certificate Manager + ALB HTTPS listener (port 443 SG already configured)
 - [ ] Custom domain with Route 53
-- [ ] AWS Secrets Manager for Aurora credentials instead of hardcoded values
+- [x] ~~AWS Secrets Manager for Aurora credentials instead of hardcoded values~~ ✅ Completed
 - [ ] Amazon ECR for private container image hosting with image scanning
 - [ ] CI/CD pipeline with GitHub Actions — build, push to ECR, deploy to ECS
 - [ ] Terraform remote state with S3 + DynamoDB locking

@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------------------
+# waf.tf — WAFv2 Web ACL and association with the ALB (managed rules + rate limit).
+# ------------------------------------------------------------------------------
+
 # WAFv2 Web ACL to protect the ALB using managed rule groups + rate limiting.
 resource "aws_wafv2_web_acl" "main" {
   name  = "${var.project_name}-waf"
@@ -7,7 +11,7 @@ resource "aws_wafv2_web_acl" "main" {
     allow {}
   }
 
-
+  # Block common web exploits (e.g. SQLi, XSS) via AWS managed rule set.
   rule {
     name     = "AWSManagedRulesCommonRuleSet"
     priority = 1
@@ -30,7 +34,7 @@ resource "aws_wafv2_web_acl" "main" {
     }
   }
 
-
+  # Block requests from known bad actors (AWS IP reputation list).
   rule {
     name     = "AWSManagedRulesAmazonIpReputationList"
     priority = 2
@@ -53,7 +57,7 @@ resource "aws_wafv2_web_acl" "main" {
     }
   }
 
-
+  # Rate limit: block IPs that exceed 1000 requests per 5 minutes.
   rule {
     name     = "RateLimitRule"
     priority = 3

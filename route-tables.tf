@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------------------
+# route-tables.tf — Route tables and associations for public, app, and DB subnets.
+# ------------------------------------------------------------------------------
+
 # Route table for public subnets (default route to Internet Gateway).
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id

@@ -1,3 +1,7 @@
+# ------------------------------------------------------------------------------
+# outputs.tf — Terraform outputs exposed after apply (URLs, endpoints, IDs).
+# ------------------------------------------------------------------------------
+
 # Convenience URL for accessing the app through the ALB.
 output "app_url" {
   description = "Full URL to access the application"
@@ -88,4 +92,10 @@ output "private_app_subnet_ids" {
 output "private_db_subnet_ids" {
   description = "Private DB subnet IDS (Cache + Database Tier)"
   value       = [aws_subnet.private_db_1.id, aws_subnet.private_db_2.id]
+}
+
+# Secrets Manager ARN for Aurora credentials; use in app config or CI/CD to fetch DB credentials.
+output "aurora_secret_arn" {
+  description = "Secrets Manager ARN for Aurora credentials — use in app config and CI/CD"
+  value       = aws_secretsmanager_secret.aurora_credentials.arn
 }
