@@ -213,8 +213,7 @@ Having three policies means the service scales proactively on whichever signal i
 Aurora MySQL credentials are stored encrypted in **AWS Secrets Manager** via a dedicated `secrets.tf` file. Previously credentials were hardcoded as plain-text strings directly in `aurora.tf` — a critical security risk in a production stack. The secret stores a full JSON payload containing username, password, host, port, engine, and database name so the application only needs a single `GetSecretValue` API call to get everything it needs to connect. The ECS task receives the secret ARN as a `DB_SECRET_ARN` environment variable at runtime, and the IAM execution role has an inline policy scoped to that exact secret ARN — it cannot read any other secret in the account.
 
 > 📸 **Secrets Manager Console Screenshot:**
-<!-- TO ADD: Go to AWS Console → Secrets Manager → your-project/aurora/credentials → take a screenshot showing the secret exists → upload to GitHub and replace this line with the img tag -->
-> ⚠️ *Replace this line with your Secrets Manager screenshot after applying infrastructure*
+<img width="1918" height="816" alt="Image" src="https://github.com/user-attachments/assets/7fb051be-88fb-4bc9-a103-b5fa076c4922" />
 
 ---
 
