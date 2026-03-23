@@ -2,19 +2,33 @@
 # outputs.tf — Terraform outputs exposed after apply (URLs, endpoints, IDs).
 # ------------------------------------------------------------------------------
 
-# Convenience URL for accessing the app through the ALB.
+# [UPDATED - CloudFront] Primary HTTPS URL via CloudFront.
+# Fully trusted certificate, no browser warning.
+# Wait 5–10 minutes after apply for CloudFront global propagation.
 output "app_url" {
-  description = "Full URL to access the application"
-  value       = "http://${aws_lb.main.dns_name}"
+  description = "HTTPS URL via CloudFront — trusted certificate, no browser warning"
+  value       = "https://${aws_cloudfront_distribution.app.domain_name}"
 }
 
-# ALB DNS name (useful for troubleshooting / direct access checks).
+# [NEW - CloudFront] Raw CloudFront domain name — for DNS records or CI/CD.
+output "cloudfront_domain" {
+  description = "CloudFront distribution domain name"
+  value       = aws_cloudfront_distribution.app.domain_name
+}
+
+# [NEW - CloudFront] Distribution ID — for cache invalidation in CI/CD pipelines.
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID — use for cache invalidation in CI/CD"
+  value       = aws_cloudfront_distribution.app.id
+}
+
+# ALB DNS name — internal origin used by CloudFront. Use app_url to access the app.
 output "alb_dns_name" {
-  description = "Raw ALB DNS name"
+  description = "Raw ALB DNS name — internal origin, use app_url instead"
   value       = aws_lb.main.dns_name
 }
 
-# ECS cluster name where the service runs.
+# ECS cluster name.
 output "ecs_cluster_name" {
   description = "ECS Cluster name"
   value       = aws_ecs_cluster.main.name
@@ -26,75 +40,75 @@ output "cloudwatch_log_group" {
   value       = aws_cloudwatch_log_group.ecs.name
 }
 
-# Redis primary endpoint for write operations.
-output "redis_priamry_endpoint" {
+# [FIXED] Typo corrected: "redis_priamry_endpoint" → "redis_primary_endpoint"
+output "redis_primary_endpoint" {
   description = "Redis primary endpoint for write operations"
   value       = aws_elasticache_replication_group.redis.primary_endpoint_address
 }
 
 # Redis reader endpoint for read operations.
 output "redis_reader_endpoint" {
-  description = "Redis primary endpoint for read operations"
+  description = "Redis reader endpoint for read operations"
   value       = aws_elasticache_replication_group.redis.reader_endpoint_address
 }
 
-# Redis port for clients (ECS tasks) to connect to.
+# Redis port.
 output "redis_port" {
-  description = "Redis Port"
+  description = "Redis port"
   value       = 6379
 }
 
-# Aurora writer endpoint for write operations.
+# Aurora writer endpoint.
 output "aurora_writer_endpoint" {
   description = "Aurora writer endpoint for all write operations"
   value       = aws_rds_cluster.aurora.endpoint
   sensitive   = true
 }
 
-# Aurora reader endpoint for read scaling.
+# Aurora reader endpoint.
 output "aurora_reader_endpoint" {
-  description = "Aurora reader endpoint for all write operations"
+  description = "Aurora reader endpoint for read scaling"
   value       = aws_rds_cluster.aurora.reader_endpoint
   sensitive   = true
 }
 
-# Aurora database name created in the cluster.
+# Aurora database name.
 output "aurora_database_name" {
-  description = "Aurora Database name"
+  description = "Aurora database name"
   value       = aws_rds_cluster.aurora.database_name
 }
 
-# Aurora port used by MySQL clients.
+# Aurora port.
 output "aurora_port" {
   description = "Aurora port"
   value       = aws_rds_cluster.aurora.port
 }
 
-# VPC ID for integration with other stacks/modules.
+# VPC ID.
 output "vpc_id" {
   description = "VPC ID"
   value       = aws_vpc.main.id
 }
 
-# Public subnet IDs used by internet-facing resources (ALB/NAT).
+# Public subnet IDs.
 output "public_subnet_ids" {
-  description = "Public Subnet Ids (Web Tier)"
+  description = "Public subnet IDs (web tier)"
   value       = [aws_subnet.public_1.id, aws_subnet.public_2.id]
 }
 
-# Private app subnet IDs used by ECS tasks (application tier).
+# Private app subnet IDs.
 output "private_app_subnet_ids" {
-  description = "Private app subnet IDS (Application Tier)"
+  description = "Private app subnet IDs (application tier)"
   value       = [aws_subnet.private_app_1.id, aws_subnet.private_app_2.id]
 }
 
-# Private DB subnet IDs used by Redis and Aurora (data tier).
+# Private DB subnet IDs.
 output "private_db_subnet_ids" {
-  description = "Private DB subnet IDS (Cache + Database Tier)"
+  description = "Private DB subnet IDs (cache and database tier)"
   value       = [aws_subnet.private_db_1.id, aws_subnet.private_db_2.id]
 }
 
-# Secrets Manager ARN for Aurora credentials; use in app config or CI/CD to fetch DB credentials.
+# Secrets Manager ARN for Aurora credentials.
 output "aurora_secret_arn" {
   description = "Secrets Manager ARN for Aurora credentials — use in app config and CI/CD"
   value       = aws_secretsmanager_secret.aurora_credentials.arn

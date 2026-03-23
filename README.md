@@ -4,11 +4,12 @@
 
 This project demonstrates how to deploy a **production-grade, three-tier cloud application** on **Amazon Web Services (AWS)** using **HashiCorp Terraform** Infrastructure as Code (IaC).
 
-Terraform provisions and configures a fully isolated, highly available infrastructure across three network tiers — a public web tier, a private application tier, and a private data tier — with enterprise-grade security controls, automated scaling, and full observability.
+Terraform provisions and configures a fully isolated, highly available infrastructure across three network tiers — a public web tier, a private application tier, and a private data tier — with enterprise-grade security controls, automated scaling, full observability, and trusted HTTPS via CloudFront.
 
 The infrastructure includes:
 - Custom VPC with 6 subnets across 3 tiers and 2 Availability Zones
 - AWS WAFv2 protecting the ALB with managed rule groups and rate limiting
+- **AWS CloudFront distribution providing free trusted HTTPS — no custom domain required**
 - Application Load Balancer (ALB) in the public tier
 - ECS Fargate tasks in private application subnets with NAT Gateway outbound access
 - Aurora MySQL Serverless v2 cluster (writer + reader) in the private data tier
@@ -18,18 +19,20 @@ The infrastructure includes:
 - Four independent security groups with strict least-privilege chaining
 - **AWS Secrets Manager for encrypted Aurora MySQL credential management**
 
-This project highlights production cloud architecture, defence-in-depth security, serverless data services, and advanced DevOps deployment practices.
+This project highlights production cloud architecture, defence-in-depth security, serverless data services, HTTPS delivery, and advanced DevOps deployment practices.
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-Internet
-    ↓
+User Browser
+     ↓ HTTPS (trusted *.cloudfront.net — AWS-managed certificate)
+AWS CloudFront Distribution
+     ↓ HTTP :80 (origin request)
 AWS WAFv2 Web ACL
 (Common Rules + IP Reputation + Rate Limit 1000 req/IP)
-    ↓
+     ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                      VPC (10.0.0.0/16)                          │
 │                                                                 │
@@ -77,8 +80,9 @@ AWS WAFv2 Web ACL
 | Public Route Table | Routes `0.0.0.0/0` to Internet Gateway for public subnets |
 | Private App Route Tables (×2) | Per-AZ routes to respective NAT Gateways |
 | Private DB Route Table | No internet route — fully isolated data tier |
-| WAFv2 Web ACL | AWS Common Rule Set, IP Reputation List, Rate Limiting (1000 req/IP) |
+| WAFv2 Web ACL | AWS Common Rule Set (count mode), IP Reputation List, Rate Limiting (1000 req/IP) |
 | WAFv2 ALB Association | Web ACL attached directly to the ALB |
+| CloudFront Distribution | HTTPS termination on `*.cloudfront.net` — free trusted certificate |
 | ALB Security Group | Accepts HTTP (80) and HTTPS (443) from internet |
 | ECS Security Group | Accepts HTTP only from ALB security group |
 | Redis Security Group | Accepts port 6379 only from ECS security group |
@@ -119,7 +123,7 @@ AWS WAFv2 Web ACL
 
 ```
 terraform-production-three-tier/
-├── providers.tf           # Terraform version, AWS provider, default tags
+├── providers.tf           # Terraform version, AWS + null provider, default tags
 ├── variables.tf           # Input variables: region, project name, environment, DB credentials
 ├── vpc.tf                 # VPC with DNS support
 ├── subnet.tf              # 6 subnets across 3 tiers and 2 AZs
@@ -129,19 +133,20 @@ terraform-production-three-tier/
 ├── security-groups.tf     # 4 security groups: ALB, ECS, Redis, Aurora
 ├── waf.tf                 # WAFv2 Web ACL + ALB association
 ├── alb.tf                 # ALB, target group, HTTP listener
+├── cloudfront.tf          # CloudFront distribution — HTTPS on *.cloudfront.net
 ├── ecs.tf                 # ECS cluster, task definition, service, IAM, CloudWatch logs
 ├── autoscaling.tf         # 3-policy auto scaling + CloudWatch alarms
 ├── aurora.tf              # Aurora MySQL Serverless v2 cluster + parameter group
 ├── redis.tf               # ElastiCache Redis replication group + parameter group
 ├── secrets.tf             # Secrets Manager secret, versioning, data source, IAM read policy
-└── outputs.tf             # App URL, endpoints for Redis, Aurora, VPC, subnet IDs, secret ARN
+└── outputs.tf             # CloudFront URL, ALB DNS, Redis/Aurora endpoints, secret ARN
 ```
 
 ### File Explanations
 
 | File | Purpose |
 |---|---|
-| `providers.tf` | Pins Terraform `>=1.14.0`, AWS provider `~> 5.0`, applies default tags to all resources |
+| `providers.tf` | Pins Terraform `>=1.14.0`, AWS provider `~> 5.0`, null `~> 3.0`, applies default tags |
 | `variables.tf` | Defines `aws_region`, `project_name`, `environment`, `db_username`, `db_password` variables |
 | `vpc.tf` | Creates the VPC (`10.0.0.0/16`) with DNS hostnames enabled |
 | `subnet.tf` | 2 public, 2 private app, 2 private DB subnets across 2 AZs |
@@ -149,14 +154,15 @@ terraform-production-three-tier/
 | `nat-gw.tf` | 2 NAT Gateways with Elastic IPs for private app subnet outbound access |
 | `route-tables.tf` | 4 route tables with correct associations per subnet tier |
 | `security-groups.tf` | ALB, ECS, Redis, Aurora security groups with strict least-privilege rules |
-| `waf.tf` | WAFv2 Web ACL with 3 rules: Common Rule Set, IP Reputation, Rate Limiting |
+| `waf.tf` | WAFv2 Web ACL with 3 rules: Common Rule Set (count), IP Reputation, Rate Limiting |
 | `alb.tf` | Public ALB, IP-based target group with health checks, HTTP listener |
+| `cloudfront.tf` | CloudFront distribution — free trusted HTTPS on `*.cloudfront.net` |
 | `ecs.tf` | Cluster, capacity providers, task definition, service, IAM role, CloudWatch logs |
 | `autoscaling.tf` | 3 scaling policies (CPU, memory, requests) + 2 CloudWatch alarms |
 | `aurora.tf` | Aurora MySQL Serverless v2 cluster with writer + reader instances |
 | `redis.tf` | Multi-AZ Redis replication group with encryption and LRU eviction |
 | `secrets.tf` | Creates Secrets Manager secret, seeds Aurora credentials, exposes data source, IAM read policy |
-| `outputs.tf` | Outputs app URL, ALB DNS, cluster name, Redis endpoints, Aurora endpoints, secret ARN |
+| `outputs.tf` | Outputs CloudFront HTTPS URL, ALB DNS, cluster name, Redis/Aurora endpoints, secret ARN |
 
 ---
 
@@ -182,8 +188,9 @@ This is the correct production network model. Each tier can only receive traffic
 ### 3️⃣ Defence-in-Depth Security
 
 Security is enforced at multiple layers simultaneously:
-- **WAFv2** blocks known bad actors, common exploits, and rate-abusive IPs before they reach the ALB
-- **Security groups** chain traffic strictly: Internet → ALB → ECS → Redis/Aurora
+- **CloudFront** provides HTTPS termination at the edge before traffic reaches the ALB
+- **WAFv2** inspects all CloudFront origin requests for known exploits and rate-abusive IPs
+- **Security groups** chain traffic strictly: CloudFront → ALB → ECS → Redis/Aurora
 - **No public IPs on ECS tasks** — containers are not directly reachable from the internet
 - **No internet route on DB subnets** — data tier is completely isolated from outbound internet
 - **Secrets Manager** — Aurora credentials are never stored in source code, state files, or terminal history
@@ -210,10 +217,22 @@ Having three policies means the service scales proactively on whichever signal i
 
 ### 7️⃣ AWS Secrets Manager for Aurora Credentials
 
-Aurora MySQL credentials are stored encrypted in **AWS Secrets Manager** via a dedicated `secrets.tf` file. Previously credentials were hardcoded as plain-text strings directly in `aurora.tf` — a critical security risk in a production stack. The secret stores a full JSON payload containing username, password, host, port, engine, and database name so the application only needs a single `GetSecretValue` API call to get everything it needs to connect. The ECS task receives the secret ARN as a `DB_SECRET_ARN` environment variable at runtime, and the IAM execution role has an inline policy scoped to that exact secret ARN — it cannot read any other secret in the account.
+Aurora MySQL credentials are stored encrypted in **AWS Secrets Manager** via a dedicated `secrets.tf` file. The secret stores a full JSON payload containing username, password, host, port, engine, and database name. The ECS task receives the secret ARN as a `DB_SECRET_ARN` environment variable at runtime, and the IAM execution role has an inline policy scoped to that exact secret ARN — it cannot read any other secret in the account.
 
 > 📸 **Secrets Manager Console Screenshot:**
 <img width="1918" height="816" alt="Image" src="https://github.com/user-attachments/assets/7fb051be-88fb-4bc9-a103-b5fa076c4922" />
+
+### 8️⃣ HTTPS via AWS CloudFront
+
+HTTPS is provided by an **AWS CloudFront distribution** placed in front of the ALB. CloudFront uses its own free, AWS-managed certificate on a `*.cloudfront.net` domain — no custom domain, no ACM certificate request, no DNS validation, and no browser security warnings required. CloudFront terminates HTTPS from the browser and forwards plain HTTP to the ALB on port 80 internally.
+
+The WAFv2 Web ACL remains attached to the ALB — all CloudFront origin requests still pass through the WAF before reaching the ECS tasks, preserving the full defence-in-depth security model.
+
+> ⚠️ **Important:** CloudFront must connect to the ALB using `origin_protocol_policy = "http-only"`. Using `"https-only"` causes a 504 Gateway Timeout because the ALB has no HTTPS listener.
+
+### 9️⃣ WAFv2 Common Rule Set — Count Mode
+
+The `AWSManagedRulesCommonRuleSet` is set to `override_action { count {} }` rather than `none {}`. This is because the Common Rule Set can flag CloudFront forwarded headers (such as `X-Forwarded-For` and `X-Forwarded-Proto`) as suspicious traffic, causing false positive blocks. Count mode logs all rule matches without blocking, allowing you to review WAF sampled requests and confirm no legitimate traffic is being flagged. Once verified, switch to `none {}` to re-enable full enforcement.
 
 ---
 
@@ -222,7 +241,7 @@ Aurora MySQL credentials are stored encrypted in **AWS Secrets Manager** via a d
 ### Prerequisites
 - [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.14.0
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) configured with valid credentials
-- AWS account with ECS, RDS, ElastiCache, WAF, EC2, IAM, CloudWatch, and **Secrets Manager** permissions
+- AWS account with ECS, RDS, ElastiCache, WAF, EC2, IAM, CloudWatch, **Secrets Manager**, and **CloudFront** permissions
 
 ### Steps
 
@@ -266,6 +285,8 @@ terraform apply \
 
 > ⚠️ Aurora and Redis provisioning takes approximately **10–15 minutes**. ECS tasks will reach healthy state within 2–3 minutes after that.
 
+> ⚠️ CloudFront takes **5–10 minutes** to deploy globally. Wait for full propagation before testing the HTTPS URL.
+
 > 🔒 After first apply, credentials are stored encrypted in Secrets Manager. They never need to be passed again unless rotated.
 
 ---
@@ -275,22 +296,24 @@ terraform apply \
 After a successful `terraform apply`, you will see:
 
 ```
-app_url                = "http://myapp-alb-xxxxxxxxxxxx.eu-west-2.elb.amazonaws.com"
-alb_dns_name           = "myapp-alb-xxxxxxxxxxxx.eu-west-2.elb.amazonaws.com"
-ecs_cluster_name       = "myapp-cluster"
-cloudwatch_log_group   = "/ecs/myapp"
-redis_primary_endpoint = "myapp-redis.xxxxxx.0001.euw2.cache.amazonaws.com"
-redis_reader_endpoint  = "myapp-redis-ro.xxxxxx.0001.euw2.cache.amazonaws.com"
-redis_port             = 6379
-aurora_writer_endpoint = <sensitive>
-aurora_reader_endpoint = <sensitive>
-aurora_database_name   = "appdb"
-aurora_port            = 3306
-aurora_secret_arn      = "arn:aws:secretsmanager:eu-west-2:xxxxxxxxxxxx:secret:myapp/aurora/credentials"
-vpc_id                 = "vpc-xxxxxxxxxxxxxxxxx"
-public_subnet_ids      = ["subnet-xxxxxxxxx", "subnet-xxxxxxxxx"]
-private_app_subnet_ids = ["subnet-xxxxxxxxx", "subnet-xxxxxxxxx"]
-private_db_subnet_ids  = ["subnet-xxxxxxxxx", "subnet-xxxxxxxxx"]
+app_url                    = "https://xxxxxxxxxxxx.cloudfront.net"
+cloudfront_domain          = "xxxxxxxxxxxx.cloudfront.net"
+cloudfront_distribution_id = "XXXXXXXXXXXXXX"
+alb_dns_name               = "myapp-alb-xxxxxxxxxxxx.eu-west-2.elb.amazonaws.com"
+ecs_cluster_name           = "myapp-cluster"
+cloudwatch_log_group       = "/ecs/myapp"
+redis_primary_endpoint     = "myapp-redis.xxxxxx.0001.euw2.cache.amazonaws.com"
+redis_reader_endpoint      = "myapp-redis-ro.xxxxxx.0001.euw2.cache.amazonaws.com"
+redis_port                 = 6379
+aurora_writer_endpoint     = <sensitive>
+aurora_reader_endpoint     = <sensitive>
+aurora_database_name       = "appdb"
+aurora_port                = 3306
+aurora_secret_arn          = "arn:aws:secretsmanager:eu-west-2:xxxxxxxxxxxx:secret:myapp/aurora/credentials"
+vpc_id                     = "vpc-xxxxxxxxxxxxxxxxx"
+public_subnet_ids          = ["subnet-xxxxxxxxx", "subnet-xxxxxxxxx"]
+private_app_subnet_ids     = ["subnet-xxxxxxxxx", "subnet-xxxxxxxxx"]
+private_db_subnet_ids      = ["subnet-xxxxxxxxx", "subnet-xxxxxxxxx"]
 ```
 
 > 📸 **Deployment Screenshot:**
@@ -300,16 +323,18 @@ private_db_subnet_ids  = ["subnet-xxxxxxxxx", "subnet-xxxxxxxxx"]
 
 ## 🌐 Application Validation
 
-Once Terraform completes deployment, copy the `app_url` and open it in your browser:
+Once Terraform completes deployment and CloudFront has propagated, copy the `app_url` and open it in your browser:
 
 ```
-http://myapp-alb-xxxxxxxxxxxx.eu-west-2.elb.amazonaws.com
+https://xxxxxxxxxxxx.cloudfront.net
 ```
 
 The Nginx container responds confirming that:
 - ECS Fargate tasks are running and healthy in the private application tier
+- CloudFront is serving the application over trusted HTTPS
 - The ALB is routing traffic correctly through the WAF
 - Target group health checks are passing
+- No browser security warning is shown
 
 > 📸 **App Screenshot:**
 <img width="1918" height="873" alt="image" src="https://github.com/user-attachments/assets/bc5c63de-a02d-482b-9356-b6b6c7403fc9" />
@@ -317,6 +342,20 @@ The Nginx container responds confirming that:
 ---
 
 ## 🔒 Security Validation
+
+### HTTPS via CloudFront
+
+Navigate to **AWS Console → CloudFront → Distributions**
+
+Your distribution will show:
+- **Status:** `Enabled`
+- **Domain name:** `xxxxxxxxxxxx.cloudfront.net`
+- **Certificate:** `Default CloudFront Certificate`
+- **Origin:** your ALB DNS name
+
+> 📸 **CloudFront Distribution Screenshot:**
+<!-- TO ADD: Go to AWS Console → CloudFront → Distributions → take a screenshot showing Status Enabled and your domain → upload to GitHub and replace this line with the img tag -->
+> ⚠️ *Replace this line with your CloudFront distribution screenshot*
 
 ### WAFv2 Protection
 
@@ -326,9 +365,11 @@ The WAF rules active on the ALB:
 
 | Rule | Priority | Action |
 |---|---|---|
-| AWSManagedRulesCommonRuleSet | 1 | Block matching requests |
+| AWSManagedRulesCommonRuleSet | 1 | Count (review sampled requests — switch to Block once confirmed) |
 | AWSManagedRulesAmazonIpReputationList | 2 | Block known malicious IPs |
 | RateLimitRule | 3 | Block IPs exceeding 1000 requests |
+
+> ⚠️ The Common Rule Set is in **count mode** to prevent false positive blocks on CloudFront forwarded headers. Review WAF sampled requests in the console and switch `override_action` from `count {}` to `none {}` in `waf.tf` to re-enable full blocking once confirmed.
 
 > 📸 **WAF Screenshot:**
 <img width="1860" height="652" alt="image" src="https://github.com/user-attachments/assets/d5060605-6632-4baa-a236-1814efdfb945" />
@@ -357,8 +398,7 @@ The secret confirms:
 - The `DB_SECRET_ARN` environment variable in the ECS task definition points to this secret
 
 > 📸 **Secrets Manager Screenshot:**
-<!-- TO ADD: Go to AWS Console → Secrets Manager → your-project/aurora/credentials → take a screenshot → upload to GitHub and replace this line with the img tag -->
-> ⚠️ *Replace this line with your Secrets Manager screenshot after applying infrastructure*
+<img width="1918" height="816" alt="Image" src="https://github.com/user-attachments/assets/7fb051be-88fb-4bc9-a103-b5fa076c4922" />
 
 ---
 
@@ -384,6 +424,7 @@ Navigate to **ECS → Cluster → Service → Configuration and networking tab �
 | Component | Service Used |
 |---|---|
 | Networking | Amazon VPC, 6 Subnets (3 tiers × 2 AZs), IGW, Dual NAT Gateways |
+| HTTPS / CDN | AWS CloudFront — free trusted certificate on `*.cloudfront.net` |
 | Security | AWS WAFv2, 4 Security Groups (least-privilege chaining) |
 | Credential Management | AWS Secrets Manager |
 | Load Balancing | AWS Application Load Balancer (ALB) |
@@ -403,17 +444,20 @@ Navigate to **ECS → Cluster → Service → Configuration and networking tab �
 - Three-tier VPC design with full network isolation per tier
 - Dual NAT Gateways for per-AZ high availability of outbound connectivity
 - AWS WAFv2 with managed rule groups and IP-based rate limiting
+- HTTPS via CloudFront — free trusted certificate, no custom domain required
+- `origin_protocol_policy = "http-only"` — correct CloudFront-to-ALB origin configuration
+- WAFv2 count mode to prevent false positive blocks on CloudFront forwarded headers
 - ECS Fargate tasks running in private subnets with no public IPs
 - Aurora MySQL Serverless v2 with auto-scaling ACUs and separate read/write endpoints
 - ElastiCache Redis Multi-AZ replication with at-rest and in-transit encryption
 - Three-policy auto scaling (CPU, memory, request count) with CloudWatch alarms
 - Least-privilege security group chaining across all four tiers
 - Default tag strategy for cost tracking across all resources
-- Terraform resource dependency management across 16 logical files
-- **AWS Secrets Manager for encrypted Aurora credential storage and runtime injection**
-- **`sensitive = true` variable flag for Terraform output redaction**
-- **Least-privilege inline IAM policy scoped to a single secret ARN**
-- **`DB_SECRET_ARN` environment variable pattern for secure runtime credential retrieval**
+- Terraform resource dependency management across 17 logical files
+- AWS Secrets Manager for encrypted Aurora credential storage and runtime injection
+- `sensitive = true` variable flag for Terraform output redaction
+- Least-privilege inline IAM policy scoped to a single secret ARN
+- `DB_SECRET_ARN` environment variable pattern for secure runtime credential retrieval
 
 ---
 
@@ -422,14 +466,16 @@ Navigate to **ECS → Cluster → Service → Configuration and networking tab �
 This project demonstrates the ability to:
 
 - Design and deploy a production-grade three-tier architecture on AWS
-- Implement defence-in-depth security at the WAF, network, and security group layers
+- Implement defence-in-depth security at the CloudFront, WAF, network, and security group layers
+- Add trusted HTTPS to a production stack without a custom domain using CloudFront
+- Diagnose and resolve real-world 504 errors caused by incorrect CloudFront origin protocol configuration
 - Deploy serverless container workloads in fully private network tiers
 - Provision Aurora Serverless v2 and Redis with encryption and multi-AZ resilience
 - Configure multi-metric auto scaling with CloudWatch observability
 - Structure complex Terraform configurations across logical, single-responsibility files
 - Apply enterprise cloud architecture patterns using Infrastructure as Code
-- **Manage database credentials securely using AWS Secrets Manager via Terraform**
-- **Inject secret ARNs into ECS tasks for secure runtime credential retrieval**
+- Manage database credentials securely using AWS Secrets Manager via Terraform
+- Inject secret ARNs into ECS tasks for secure runtime credential retrieval
 
 ---
 
@@ -437,9 +483,10 @@ This project demonstrates the ability to:
 
 Potential enhancements:
 
-- [ ] HTTPS with AWS Certificate Manager + ALB HTTPS listener (port 443 SG already configured)
-- [ ] Custom domain with Route 53
+- [x] ~~HTTPS with AWS Certificate Manager + ALB HTTPS listener~~ ✅ Completed via CloudFront
 - [x] ~~AWS Secrets Manager for Aurora credentials instead of hardcoded values~~ ✅ Completed
+- [ ] Re-enable WAFv2 Common Rule Set full blocking after verifying no CloudFront false positives
+- [ ] Custom domain with Route 53 + ACM certificate on CloudFront
 - [ ] Amazon ECR for private container image hosting with image scanning
 - [ ] CI/CD pipeline with GitHub Actions — build, push to ECR, deploy to ECS
 - [ ] Terraform remote state with S3 + DynamoDB locking

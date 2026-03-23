@@ -1,5 +1,6 @@
 # ------------------------------------------------------------------------------
 # alb.tf — Application Load Balancer, target group, and HTTP listener.
+# HTTPS is handled by CloudFront — ALB only needs port 80.
 # ------------------------------------------------------------------------------
 
 # Target group for ECS tasks behind the ALB.

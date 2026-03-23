@@ -12,6 +12,11 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    # null provider for null_resource if needed by other modules
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
+    }
   }
 }
 

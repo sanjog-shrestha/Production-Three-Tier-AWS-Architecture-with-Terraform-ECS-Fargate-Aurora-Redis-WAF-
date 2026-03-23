@@ -27,9 +27,9 @@ resource "aws_subnet" "private_app_1" {
 
 # Private application subnet (AZ b) for ECS tasks (no public IPs).
 resource "aws_subnet" "private_app_2" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.12.0/24"
-  availability_zone       = "${var.aws_region}b"
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.12.0/24"
+  availability_zone = "${var.aws_region}b"
 }
 
 # Private data subnet (AZ a) for cache + database.
@@ -41,7 +41,7 @@ resource "aws_subnet" "private_db_1" {
 
 # Private data subnet (AZ b) for cache + database.
 resource "aws_subnet" "private_db_2" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.22.0/24"
-  availability_zone       = "${var.aws_region}b"
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.22.0/24"
+  availability_zone = "${var.aws_region}b"
 }
