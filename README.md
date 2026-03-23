@@ -317,7 +317,8 @@ private_db_subnet_ids      = ["subnet-xxxxxxxxx", "subnet-xxxxxxxxx"]
 ```
 
 > 📸 **Deployment Screenshot:**
-<img width="937" height="535" alt="image" src="https://github.com/user-attachments/assets/24c90b77-5a2e-40ff-9879-cb8d711718fb" />
+<img width="1057" height="607" alt="image" src="https://github.com/user-attachments/assets/1f13383e-9858-4e8e-9fec-015fafbafe1a" />
+
 
 ---
 
@@ -337,7 +338,8 @@ The Nginx container responds confirming that:
 - No browser security warning is shown
 
 > 📸 **App Screenshot:**
-<img width="1918" height="873" alt="image" src="https://github.com/user-attachments/assets/bc5c63de-a02d-482b-9356-b6b6c7403fc9" />
+<img width="1918" height="842" alt="image" src="https://github.com/user-attachments/assets/f38b8d22-8d6a-4979-843e-d8d40c6d3f80" />
+
 
 ---
 
@@ -355,7 +357,7 @@ Your distribution will show:
 
 > 📸 **CloudFront Distribution Screenshot:**
 <!-- TO ADD: Go to AWS Console → CloudFront → Distributions → take a screenshot showing Status Enabled and your domain → upload to GitHub and replace this line with the img tag -->
-> ⚠️ *Replace this line with your CloudFront distribution screenshot*
+<img width="1918" height="356" alt="image" src="https://github.com/user-attachments/assets/3ed9e9eb-2bac-464a-9f36-e88127ee0e51" />
 
 ### WAFv2 Protection
 
